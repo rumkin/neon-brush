@@ -54,24 +54,6 @@ function __init {
     fi
 };
 
-function __build {
-    build $OUT $@
-}
-
-# Build binary from sources.
-# The first argument is a name of binary.
-function build {
-    OUT=$1
-    shift 1
-
-    docker run --rm \
-		-e GOPATH=${GOPATH}:/ \
-		-v $PWD/$GODIR:$GOPATH \
-		-v $PWD:/src \
-		-w /src \
-		golang go build -o build/$OUT $@
-}
-
 # Install package from repository or file system
 # Note that installation is running inside docker container
 # and you should to add directory manually
@@ -99,10 +81,35 @@ function __uninstall {
     fi
 }
 
+# Build binary from sources.
+# The first argument is a name of binary.
+function build {
+  OUT=$1
+  shift 1
+
+  docker run --rm \
+  -e GOPATH=${GOPATH}:/ \
+  -v $PWD/$GODIR:$GOPATH \
+  -v $PWD:/src \
+  -w /src \
+  golang go build -o build/$OUT $@
+}
+
+# Build default target
+function __build {
+    build $OUT $@
+}
+
 # Build and run
 function __run {
-    __build $OUT $@
+    __build $@
     ./build/$OUT
+}
+
+function __release {
+  __clean
+  __build $@
+  tar -cjf build/$OUT-linux_x64.tar.gz -C build $OUT
 }
 
 # Clean build directory
