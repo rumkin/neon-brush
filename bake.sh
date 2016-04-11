@@ -58,14 +58,22 @@ function __init {
 # Note that installation is running inside docker container
 # and you should to add directory manually
 function __install {
-    docker run --rm \
-		-e GOPATH=${GOPATH} \
-		-v $PWD/$GODIR:${GOPATH} \
-		-w $GOPATH/ \
-		golang go get "$1" || exit 1
+    if [ $# -gt 0 ]
+    then
+        docker run --rm \
+    		-e GOPATH=${GOPATH} \
+    		-v $PWD/$GODIR:${GOPATH} \
+    		-w $GOPATH/ \
+    		golang go get "$1" || exit 1
 
-    if [ -z "$(cat $GODEPS | grep "$1")" ]; then
-        echo $1 >> $GODEPS
+        if [ -z "$(cat $GODEPS | grep "$1")" ]; then
+            echo $1 >> $GODEPS
+        fi
+    else
+        while read dep
+        do
+            bake install $dep
+        done < $GODEPS
     fi
 }
 
@@ -87,10 +95,22 @@ function build {
   OUT=$1
   shift 1
 
+  if [ -z "$GOOS" ]
+  then
+      GOOS=linux
+  fi
+
+  if [ -z "$GOARCH" ]
+  then
+      GOARCH=amd64
+  fi
+
   docker run --rm \
   -e GOPATH=${GOPATH}:/ \
   -v $PWD/$GODIR:$GOPATH \
   -v $PWD:/src \
+  -e GOOS=$GOOS \
+  -e GOARCH=$GOARCH \
   -w /src \
   golang go build -o build/$OUT $@
 }
@@ -108,8 +128,21 @@ function __run {
 
 function __release {
   __clean
-  __build $@
-  tar -cjf build/$OUT-linux_x64.tar.gz -C build $OUT
+
+  __release_linux
+  __release_darwin
+}
+
+function __release_linux {
+    __build $@
+    tar -cjf build/$OUT-linux_x64.tar.gz -C build $OUT
+    rm build/$OUT
+}
+
+function __release_darwin {
+    GOOS=darwin GOARCH=amd64 __build $@
+    tar -cjf build/$OUT-darwin_x64.tar.gz -C build $OUT
+    rm build/$OUT
 }
 
 # Clean build directory
